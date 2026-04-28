@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockPulse Monitor — Daily Company Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Fira+Code:wght@300;400;500&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --void: #080c10;
+  --surface: #0e1318;
+  --panel: #141b22;
+  --border: rgba(255,255,255,0.06);
+  --amber: #f0a500;
+  --amber-dim: rgba(240,165,0,0.12);
+  --cyan: #00c8c8;
+  --cyan-dim: rgba(0,200,200,0.08);
+  --red: #ff4444;
+  --green: #00e676;
+  --muted: #4a5568;
+  --text: #c8d4e0;
+  --text-bright: #edf2f7;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--void);
+  min-height: 100vh;
+  font-family: 'Fira Code', monospace;
+  color: var(--text);
+  overflow-x: hidden;
+}
+
+/* Scanline effect */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events: none; z-index: 999;
+}
+
+/* Grid background */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,200,200,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,200,200,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none; z-index: 0;
+}
+
+.page { position: relative; z-index: 1; max-width: 600px; margin: 0 auto; padding: 40px 20px 80px; }
+
+/* ── HEADER ── */
+.terminal-bar {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0; padding: 10px 16px;
+  margin-bottom: 0;
+}
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.d1 { background: #ff5f57; } .d2 { background: #febc2e; } .d3 { background: #28c840; }
+.term-title { font-size: 11px; color: var(--muted); margin-left: auto; letter-spacing: .1em; }
+
+.hero {
+  background: var(--panel); border: 1px solid var(--border); border-top: none;
+  padding: 36px 28px 28px; margin-bottom: 2px;
+  position: relative; overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute; top: -40px; right: -40px;
+  width: 200px; height: 200px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(240,165,0,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.tag-line {
+  font-family: 'Fira Code', monospace; font-size: 10px;
+  color: var(--cyan); letter-spacing: .15em; text-transform: uppercase;
+  margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+}
+.pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(0,230,118,.4)} 50%{box-shadow:0 0 0 6px rgba(0,230,118,0)} }
+
+h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: clamp(32px, 8vw, 52px);
+  font-weight: 800; line-height: 1.0;
+  color: var(--text-bright); margin-bottom: 6px;
+  letter-spacing: -0.02em;
+}
+h1 .amber { color: var(--amber); }
+h1 .cyan  { color: var(--cyan); }
+
+.subtitle {
+  font-family: 'Lora', serif; font-style: italic;
+  font-size: 14px; color: var(--muted); line-height: 1.65;
+  max-width: 440px; margin-bottom: 24px;
+}
+
+/* ── STATS ── */
+.stats {
+  display: grid; grid-template-columns: repeat(4,1fr);
+  border-top: 1px solid var(--border); padding-top: 20px; gap: 0;
+}
+.stat { padding: 0 12px 0 0; border-right: 1px solid var(--border); }
+.stat:last-child { border-right: none; padding-right: 0; padding-left: 12px; }
+.stat:first-child { padding-left: 0; }
+.s-val { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: var(--amber); }
+.s-lbl { font-size: 8px; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; margin-top: 2px; }
+
+/* ── FORM CARD ── */
+.form-wrap {
+  background: var(--panel); border: 1px solid var(--border); border-top: none;
+  padding: 28px; border-radius: 0 0 12px 12px;
+}
+
+.section-hd {
+  font-size: 9px; letter-spacing: .15em; text-transform: uppercase;
+  color: var(--cyan); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+}
+.section-hd::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.field { margin-bottom: 16px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+label {
+  display: block; font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--amber); margin-bottom: 7px;
+}
+label .req { color: var(--red); }
+
+input, select, textarea {
+  width: 100%; background: var(--surface);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px; padding: 11px 13px;
+  font-family: 'Fira Code', monospace; font-size: 12px;
+  color: var(--text-bright); outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+input::placeholder, textarea::placeholder { color: #2d3748; }
+input:focus, select:focus, textarea:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(0,200,200,0.08);
+}
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23f0a500' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+  padding-right: 34px; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+}
+select option { background: #0e1318; }
+textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
+
+/* ── TICKER CHIPS ── */
+.ticker-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tc {
+  font-size: 10px; font-weight: 500; padding: 4px 10px; border-radius: 4px;
+  border: 1px solid rgba(240,165,0,0.3); color: var(--amber);
+  background: rgba(240,165,0,0.06); cursor: pointer; transition: all .15s;
+  font-family: 'Fira Code', monospace;
+}
+.tc:hover { background: rgba(240,165,0,0.18); border-color: var(--amber); }
+
+/* ── MONITOR TYPES ── */
+.monitor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.monitor-item {
+  border: 1.5px solid rgba(255,255,255,0.06); border-radius: 8px;
+  padding: 12px; cursor: pointer; transition: all .15s; position: relative;
+  user-select: none;
+}
+.monitor-item:hover { border-color: rgba(0,200,200,0.3); background: var(--cyan-dim); }
+.monitor-item.active { border-color: var(--cyan); background: var(--cyan-dim); }
+.monitor-item .mi-icon { font-size: 20px; margin-bottom: 5px; }
+.monitor-item .mi-title { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; color: var(--text-bright); margin-bottom: 2px; }
+.monitor-item .mi-desc { font-size: 9px; color: var(--muted); line-height: 1.5; }
+.monitor-item .mi-check { position: absolute; top: 8px; right: 8px; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--muted); display: flex; align-items: center; justify-content: center; font-size: 8px; }
+.monitor-item.active .mi-check { background: var(--cyan); border-color: var(--cyan); color: var(--void); }
+
+/* ── FREQUENCY ── */
+.freq-row { display: flex; gap: 8px; }
+.freq-btn {
+  flex: 1; padding: 10px; border-radius: 6px; border: 1.5px solid rgba(255,255,255,0.07);
+  background: var(--surface); color: var(--muted); font-family: 'Fira Code', monospace;
+  font-size: 11px; cursor: pointer; text-align: center; transition: all .15s;
+}
+.freq-btn:hover { border-color: var(--amber); color: var(--amber); }
+.freq-btn.active { border-color: var(--amber); background: var(--amber-dim); color: var(--amber); }
+
+/* ── DIVIDER ── */
+hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
+
+/* ── SUBMIT ── */
+.submit-btn {
+  width: 100%; background: var(--amber); color: var(--void);
+  font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 800;
+  border: none; border-radius: 8px; padding: 16px 24px;
+  cursor: pointer; letter-spacing: .05em; text-transform: uppercase;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: transform .15s, box-shadow .15s; margin-top: 22px; position: relative; overflow: hidden;
+}
+.submit-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(240,165,0,0.28); }
+.submit-btn:active { transform: none; }
+.submit-btn.loading { background: #1a3a3a; color: var(--cyan); pointer-events: none; }
+.spin { width: 16px; height: 16px; border: 2px solid rgba(0,200,200,.3); border-top-color: var(--cyan); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── FEATURES ── */
+.features { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; justify-content: center; }
+.feat { font-size: 9px; color: var(--muted); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); }
+.feat::before { content: '▸ '; color: var(--cyan); }
+
+/* ── SUCCESS ── */
+.success {
+  display: none; background: var(--panel); border: 1px solid rgba(0,230,118,0.3);
+  border-radius: 12px; padding: 40px 28px; text-align: center;
+}
+.success.show { display: block; }
+.s-glyph { font-size: 48px; margin-bottom: 14px; }
+.s-title { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; color: var(--green); margin-bottom: 8px; letter-spacing: -.01em; }
+.s-text { font-size: 12px; color: var(--muted); line-height: 1.8; }
+
+/* shake */
+.shake { animation: shake .3s; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+
+@media (max-width: 400px) {
+  .row2, .row3, .monitor-grid { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2,1fr); }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Terminal bar -->
+  <div class="terminal-bar">
+    <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+    <div class="term-title">STOCKPULSE_MONITOR v3.0 // PRO TIER</div>
+  </div>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="tag-line"><span class="pulse"></span>Daily Intelligence · SEC Real-Time · Auto-Monitor</div>
+    <h1>COMPANY<br><span class="amber">INTELLIGENCE</span><br><span class="cyan">MONITOR</span></h1>
+    <p class="subtitle">Set your watchlist once. Get daily SEC 8-K alerts, insider trading signals, earnings countdowns, and analyst rating changes — delivered straight to your Google Sheet.</p>
+    <div class="stats">
+      <div class="stat"><div class="s-val">8-K</div><div class="s-lbl">Real-Time Events</div></div>
+      <div class="stat"><div class="s-val">4</div><div class="s-lbl">Data Sources</div></div>
+      <div class="stat"><div class="s-val">AI</div><div class="s-lbl">Alert Summary</div></div>
+      <div class="stat"><div class="s-val">Daily</div><div class="s-lbl">Auto-Run</div></div>
+    </div>
+  </div>
+
+  <!-- Form -->
+  <div class="form-wrap" id="formWrap">
+
+    <!-- Watchlist -->
+    <div class="section-hd">01 // Watchlist</div>
+    <div class="field">
+      <label>Stock Tickers to Monitor <span class="req">*</span> <span style="color:var(--muted);font-size:8px">(comma-separated, max 10)</span></label>
+      <input type="text" id="tickers" placeholder="AAPL, TSLA, NVDA, MSFT, AMZN">
+      <div class="ticker-row">
+        <span class="tc" onclick="addTicker('AAPL')">AAPL</span>
+        <span class="tc" onclick="addTicker('TSLA')">TSLA</span>
+        <span class="tc" onclick="addTicker('NVDA')">NVDA</span>
+        <span class="tc" onclick="addTicker('MSFT')">MSFT</span>
+        <span class="tc" onclick="addTicker('GOOGL')">GOOGL</span>
+        <span class="tc" onclick="addTicker('META')">META</span>
+        <span class="tc" onclick="addTicker('AMZN')">AMZN</span>
+        <span class="tc" onclick="addTicker('JPM')">JPM</span>
+        <span class="tc" onclick="addTicker('BRK-B')">BRK-B</span>
+        <span class="tc" onclick="addTicker('XOM')">XOM</span>
+      </div>
+    </div>
+
+    <hr>
+
+    <!-- Monitor Types -->
+    <div class="section-hd">02 // Intelligence Modules</div>
+    <div class="field">
+      <label>Select what to monitor <span style="color:var(--muted);font-size:8px">(all selected by default)</span></label>
+      <div class="monitor-grid">
+        <div class="monitor-item active" onclick="toggleMonitor(this,'8k')" data-type="8k">
+          <div class="mi-check">✓</div>
+          <div class="mi-icon">📋</div>
+          <div class="mi-title">8-K Material Events</div>
+          <div class="mi-desc">Earnings releases, mergers, CEO changes, new contracts, FDA approvals</div>
+        </div>
+        <div class="monitor-item active" onclick="toggleMonitor(this,'insider')" data-type="insider">
+          <div class="mi-check">✓</div>
+          <div class="mi-icon">🕵️</div>
+          <div class="mi-title">Insider Trading (Form 4)</div>
+          <div class="mi-desc">CEO / CFO buying or selling their own stock — strongest signal in markets</div>
+        </div>
+        <div class="monitor-item active" onclick="toggleMonitor(this,'earnings')" data-type="earnings">
+          <div class="mi-check">✓</div>
+          <div class="mi-icon">📅</div>
+          <div class="mi-title">Earnings Countdown</div>
+          <div class="mi-desc">Next earnings date, EPS estimates, historical beat/miss record</div>
+        </div>
+        <div class="monitor-item active" onclick="toggleMonitor(this,'analyst')" data-type="analyst">
+          <div class="mi-check">✓</div>
+          <div class="mi-icon">📈</div>
+          <div class="mi-title">Analyst Rating Changes</div>
+          <div class="mi-desc">Goldman, Morgan Stanley, JPMorgan upgrades / downgrades / price targets</div>
+        </div>
+      </div>
+      <input type="hidden" id="modules" value="8k,insider,earnings,analyst">
+    </div>
+
+    <hr>
+
+    <!-- Frequency & Schedule -->
+    <div class="section-hd">03 // Run Schedule</div>
+    <div class="field">
+      <label>Monitor Frequency <span class="req">*</span></label>
+      <div class="freq-row">
+        <div class="freq-btn active" onclick="setFreq(this,'daily')">Daily<br><span style="font-size:9px;color:inherit;opacity:0.7">6 AM ET</span></div>
+        <div class="freq-btn" onclick="setFreq(this,'twice')">2× Daily<br><span style="font-size:9px;color:inherit;opacity:0.7">6AM + 4PM</span></div>
+        <div class="freq-btn" onclick="setFreq(this,'weekly')">Weekly<br><span style="font-size:9px;color:inherit;opacity:0.7">Mon 6 AM</span></div>
+        <div class="freq-btn" onclick="setFreq(this,'ondemand')">On-Demand<br><span style="font-size:9px;color:inherit;opacity:0.7">Form only</span></div>
+      </div>
+      <input type="hidden" id="frequency" value="daily">
+    </div>
+
+    <div class="row2" style="margin-top:14px">
+      <div class="field">
+        <label>Look-back Days <span class="req">*</span></label>
+        <select id="lookback">
+          <option value="1">Last 24 hours</option>
+          <option value="3" selected>Last 3 days</option>
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Alert Sensitivity</label>
+        <select id="sensitivity">
+          <option value="all">All events</option>
+          <option value="major" selected>Major events only</option>
+          <option value="critical">Critical only</option>
+        </select>
+      </div>
+    </div>
+
+    <hr>
+
+    <!-- Delivery -->
+    <div class="section-hd">04 // Delivery</div>
+    <div class="row2">
+      <div class="field">
+        <label>Your Name <span class="req">*</span></label>
+        <input type="text" id="userName" placeholder="John Smith">
+      </div>
+      <div class="field">
+        <label>Email <span class="req">*</span></label>
+        <input type="email" id="userEmail" placeholder="john@email.com">
+      </div>
+    </div>
+    <div class="field">
+      <label>Google Sheet URL <span class="req">*</span></label>
+      <input type="url" id="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/...">
+    </div>
+    <div class="field">
+      <label>FMP API Key <span class="req">*</span> <span style="color:var(--muted);font-size:8px">(free at financialmodelingprep.com/developer)</span></label>
+      <input type="text" id="fmpKey" placeholder="your_fmp_api_key_here">
+    </div>
+
+    <!-- Submit -->
+    <button class="submit-btn" id="submitBtn" onclick="submitForm()">
+      <span id="btnLabel">⚡ ACTIVATE MONITOR</span>
+      <span id="btnSpinner" style="display:none"><div class="spin"></div></span>
+    </button>
+
+    <div class="features">
+      <span class="feat">SEC 8-K real-time alerts</span>
+      <span class="feat">Form 4 insider signals</span>
+      <span class="feat">Earnings countdown</span>
+      <span class="feat">Analyst upgrades/downgrades</span>
+      <span class="feat">AI daily brief</span>
+      <span class="feat">Google Sheet delivery</span>
+    </div>
+  </div>
+
+  <!-- Success -->
+  <div class="success" id="successCard">
+    <div class="s-glyph">⚡</div>
+    <div class="s-title">MONITOR ACTIVATED</div>
+    <p class="s-text">
+      Your daily intelligence monitor is now running.<br>
+      Watching: <strong id="sTickerList" style="color:var(--amber)">—</strong><br><br>
+      First report will appear in your Google Sheet<br>within the next few minutes.<br><br>
+      <span style="color:var(--cyan)">All future alerts run automatically on schedule.</span>
+    </p>
+    <button class="submit-btn" style="max-width:280px;margin:24px auto 0" onclick="resetForm()">
+      ↺ ADD ANOTHER WATCHLIST
+    </button>
+  </div>
+
+</div>
+<script>
+function addTicker(t) {
+  const el = document.getElementById('tickers');
+  const current = el.value.split(',').map(s=>s.trim()).filter(Boolean);
+  if (!current.includes(t) && current.length < 10) {
+    current.push(t);
+    el.value = current.join(', ');
+  }
+}
+
+function toggleMonitor(el, type) {
+  el.classList.toggle('active');
+  el.querySelector('.mi-check').textContent = el.classList.contains('active') ? '✓' : '';
+  const active = [...document.querySelectorAll('.monitor-item.active')].map(e=>e.dataset.type);
+  document.getElementById('modules').value = active.join(',');
+}
+
+function setFreq(el, val) {
+  document.querySelectorAll('.freq-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('frequency').value = val;
+}
+
+function markErr(id) {
+  const el = document.getElementById(id);
+  el.style.borderColor = '#ff4444';
+  el.classList.add('shake');
+  setTimeout(()=>el.classList.remove('shake'), 400);
+  el.addEventListener('input', ()=>el.style.borderColor='', {once:true});
+}
+
+function submitForm() {
+  const tickers  = document.getElementById('tickers').value.trim();
+  const name     = document.getElementById('userName').value.trim();
+  const email    = document.getElementById('userEmail').value.trim();
+  const sheetUrl = document.getElementById('sheetUrl').value.trim();
+  const fmpKey   = document.getElementById('fmpKey').value.trim();
+  let ok = true;
+  if (!tickers)  { markErr('tickers');  ok=false; }
+  if (!name)     { markErr('userName'); ok=false; }
+  if (!email)    { markErr('userEmail');ok=false; }
+  if (!sheetUrl) { markErr('sheetUrl'); ok=false; }
+  if (!fmpKey)   { markErr('fmpKey');   ok=false; }
+  if (!ok) return;
+
+  const btn = document.getElementById('submitBtn');
+  btn.classList.add('loading');
+  document.getElementById('btnLabel').textContent = 'ACTIVATING...';
+  document.getElementById('btnSpinner').style.display = 'inline-block';
+
+  const payload = {
+    tickers: tickers.split(',').map(t=>t.trim().toUpperCase()).filter(Boolean).slice(0,10),
+    modules: document.getElementById('modules').value,
+    frequency: document.getElementById('frequency').value,
+    lookback: parseInt(document.getElementById('lookback').value),
+    sensitivity: document.getElementById('sensitivity').value,
+    name, email, sheetUrl, fmpKey,
+    timestamp: new Date().toISOString()
+  };
+
+  // Replace with your n8n webhook URL
+  const WEBHOOK = 'https://YOUR-N8N-INSTANCE.com/webhook/company-monitor';
+
+  fetch(WEBHOOK, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) })
+    .then(()=>showSuccess(payload.tickers))
+    .catch(()=>showSuccess(payload.tickers));
+}
+
+function showSuccess(tickers) {
+  document.getElementById('sTickerList').textContent = tickers.join(', ');
+  document.getElementById('formWrap').style.display = 'none';
+  document.getElementById('successCard').classList.add('show');
+}
+
+function resetForm() {
+  document.getElementById('formWrap').style.display = 'block';
+  document.getElementById('successCard').classList.remove('show');
+  const btn = document.getElementById('submitBtn');
+  btn.classList.remove('loading');
+  document.getElementById('btnLabel').textContent = '⚡ ACTIVATE MONITOR';
+  document.getElementById('btnSpinner').style.display = 'none';
+}
+</script>
+</body>
+</html>
